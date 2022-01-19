@@ -115,6 +115,14 @@
   {{ return(result) }}
 {% endmacro %}
 
+{% macro snowflake__list_database_objects(database) %}
+  {%- set sql -%}
+    show terse objects in database {{ database }}
+  {%- endset -%}
+
+  {%- set result = run_query(sql) -%}
+  {%- do return(result) -%}
+{% endmacro %}
 
 {% macro snowflake__list_relations_without_caching(schema_relation) %}
   {%- set sql -%}

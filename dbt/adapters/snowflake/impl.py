@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Mapping, Any, Optional, List, Union
+from typing import Mapping, Any, Optional, List, Union, Set, Tuple
 
 import agate
 
@@ -17,6 +17,8 @@ from dbt.exceptions import (
     raise_compiler_error, RuntimeException, DatabaseException
 )
 from dbt.utils import filter_null_values
+
+LIST_DATABASE_OBJECTS_MACRO_NAME = "snowflake__list_database_objects"
 
 
 @dataclass
@@ -188,3 +190,45 @@ class SnowflakeAdapter(SQLAdapter):
         self, add_to: str, number: int = 1, interval: str = 'hour'
     ) -> str:
         return f'DATEADD({interval}, {number}, {add_to})'
+
+    def set_relations_cache(self, manifest: Manifest, clear: bool = False) -> None:
+        """Run a query that gets a populated cache of the relations in the
+        database and set the cache on this adapter.
+        """
+        with self.cache.lock:
+            if clear:
+                self.cache.clear()
+            self._relations_cache_for_schemas(manifest)
+
+    def _relations_cache_for_schemas(self, manifest: Manifest) -> None:
+        """Populate the relations cache for the given schemas. Returns an
+        iterable of the schemas populated, as strings.
+        """
+        cache_schemas = self._get_cache_schemas(manifest)
+        schema_databases: Set[str] = set()
+        for cache_schema in cache_schemas:
+            schema_databases.add(cache_schema.database)
+
+        for database in schema_databases:
+            try:
+                results = self.execute_macro(
+                    LIST_DATABASE_OBJECTS_MACRO_NAME, kwargs={"database": database}
+                )
+            except DatabaseException as exc:
+                msg = (
+                    f"Database error while listing objects in database "
+                    f'"{database}"\n{exc}'
+                )
+                raise RuntimeException(msg)
+
+            for relation in results:
+                if relation["name"] in cache_schemas:
+                    self.cache.add(relation)
+
+        # it's possible that there were no relations in some schemas. We want
+        # to insert the schemas we query into the cache's `.schemas` attribute
+        # so we can check it later
+        cache_update: Set[Tuple[Optional[str], Optional[str]]] = set()
+        for relation in cache_schemas:
+            cache_update.add((relation.database, relation.schema))
+        self.cache.update_schemas(cache_update)
