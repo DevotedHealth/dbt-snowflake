@@ -37,7 +37,7 @@ def _get_plugin_version_dict():
         this_directory, "dbt", "adapters", "snowflake", "__version__.py"
     )
     _semver = r"""(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)"""
-    _pre = r"""((?P<prekind>a|b|rc)(?P<pre>\d+))?"""
+    _pre = r"""((?P<prekind>a|b|rc|dvtd)(?P<pre>\d+))?"""
     _version_pattern = fr"""version\s*=\s*["']{_semver}{_pre}["']"""
     with open(_version_path) as f:
         match = re.search(_version_pattern, f.read().strip())
