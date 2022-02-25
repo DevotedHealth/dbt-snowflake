@@ -1,1 +1,1 @@
-version = "1.0.0-dvtd"
+version = "1.0.0"
